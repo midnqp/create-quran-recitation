@@ -6,6 +6,7 @@ import process from 'node:process'
 import keypress from 'keypress'
 
 const log = console.log
+const _log = process.stdout.write
 const prompt = enquirer.prompt
 
 const _return = await main()
@@ -27,47 +28,40 @@ async function main() {
 	const audic = new Audic(audiofile)
 	audic.addEventListener('ended', () => {
 		audic.destroy()
-		process.stdin.resume()
+		process.stdin.pause()
 	})
-	//audic.play()
+	audic.play()
 	const audiostart = Date.now()
 	const totalayah = await gettotalayah(surah)
-	//const firstayah = await getayah(surah, ayah)
-	let audioplaying = false
 	let result = []
 
-	log('log: press space to begin...')
+	let ayahtext = await getayah(surah, ayah)
+	_log('ayah '+ayah+': '+ayahtext)
+
 	keypress(process.stdin)
-	process.stdin.on('keypress', (ch, _data) => {
+	process.stdin.on('keypress', async (ch, _data) => {
 		switch(ch) {
 			case '\u0003':
 				process.stdin.pause()
+				audic.destroy()
 				log('log: immediate exit')
 				log(result)
 				break
 
 			case ' ':
-				if (!audioplaying) {
-					//playAudioFile(audiofile)
-					audic.play()
-					audioplaying=true
-				}
 				const duration = getelapsed(audiostart)
-				if (result.length) result.at(-1).duration = duration
-				getayah(surah, ayah).then(ayahtext => {
-					result.push({duration: -1, ayah, ayahtext})
-					log(duration, 'ayah '+ayah+': '+ayahtext)
-
-					ayah++
-					if (ayah > totalayah) {
-						process.stdin.pause()
-						log('log: surah is complete')
-						audic.destroy()
-
-						result.at(-1).duration = duration
-						log(result)
-					}
-				})
+				_log(' | duration: '+duration+'\n')
+				result.push({duration, ayah, ayahtext})
+				ayah++
+				if (ayah > totalayah) {
+					log('log: surah is complete')
+					await audic.destroy()
+					log(result)
+					process.stdin.pause()
+					return
+				}
+				ayahtext = await getayah(surah, ayah)
+				_log('ayah '+ayah+': '+ayahtext)
 
 				break
 		}
@@ -77,7 +71,7 @@ async function main() {
 }
 
 async function gettotalayah(surah) {
-	const r = await fetch('https://api.quran.com/api/v4/chapters/1')
+	const r = await fetch('https://api.quran.com/api/v4/chapters/'+surah)
 	const body = await r.json()
 	return body.chapter.verses_count
 }
