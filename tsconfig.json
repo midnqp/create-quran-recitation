@@ -1,0 +1,10 @@
+{
+	"typeAcquisition": {
+		"enable": true
+	},
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": true,
+		"esModuleInterop": true
+	}
+}

@@ -1,0 +1,13 @@
+{
+	"name": "create-qari",
+	"license": "MIT",
+	"type": "module",
+	"dependencies": {
+		"audic": "^3.0.1",
+		"enquirer": "^2.3.6",
+		"fs-extra": "^11.1.0",
+		"keypress": "^0.2.1",
+		"play-sound": "^1.1.5",
+		"sound-play": "^1.1.0"
+	}
+}
