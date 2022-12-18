@@ -1,9 +1,11 @@
 import enquirer from 'enquirer'
 import os from 'node:os'
 import fs from 'fs-extra'
-import Audic, {playAudioFile} from 'audic'
+import Audic from 'audic'
 import process from 'node:process'
 import keypress from 'keypress'
+import mp3 from 'mp3-cutter'
+import path from 'node:path'
 
 const log = console.log
 const _log = process.stdout.write
@@ -21,6 +23,7 @@ async function main() {
 	const isvalidfile = await fs.access(audiofile).then(_ => true).catch(_ => false)
 	if (!isvalidfile) return Error('invalid audio file path')
 
+	// TODO name of qari?
 	const {surah} = await prompt({message: "surah", name: "surah", type: "text"})
 	let {ayah} = await prompt({message: "begining from ayah", name:"ayah", type:"text"})
 	ayah = Number(ayah)
@@ -56,7 +59,7 @@ async function main() {
 				if (ayah > totalayah) {
 					log('log: surah is complete')
 					await audic.destroy()
-					log(result)
+					cbresult(result, {surah, audiofile})
 					process.stdin.pause()
 					return
 				}
@@ -68,6 +71,26 @@ async function main() {
 	})
 	process.stdin.setRawMode(true)
 	process.stdin.resume()
+}
+
+// TODO As of now, ayahs are expected to be next in 
+// continuity, so ayahs after rakat will be hard to track.
+// TODO Maybe something like a pair of space i.e. start-end
+// for a verse would be more accurate. Yep, inshaa allah.
+async function cbresult(result, {audiofile, surah}) {
+	log(result)
+	const ext = path.extname(audiofile)
+	let prev = 0
+	result.forEach(r => {
+		mp3.cut({
+			src: audiofile,
+			target: 'surah-'+ surah + '-' +r.ayah+ext,
+			start: prev,
+			end: r.duration
+		})
+		prev=r.duration
+	})
+	// cut audio
 }
 
 async function gettotalayah(surah) {

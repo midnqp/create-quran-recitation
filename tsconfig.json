@@ -3,6 +3,9 @@
 		"enable": true
 	},
 	"compilerOptions": {
+		"target": "ESNext",
+		"moduleResolution": "NodeNext",
+		"module": "ESNext",
 		"allowJs": true,
 		"checkJs": true,
 		"esModuleInterop": true
