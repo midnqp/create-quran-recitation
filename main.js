@@ -4,18 +4,18 @@ import fs from 'fs-extra'
 import Audic from 'audic'
 import process from 'node:process'
 import keypress from 'keypress'
-import mp3 from 'mp3-cutter'
 import path from 'node:path'
+import childp from 'node:child_process'
 
 const log = console.log
-const _log = process.stdout.write
+const _log = process.stdout.write.bind(process.stdout)
 const prompt = enquirer.prompt
 
 const _return = await main()
 if (_return) log(_return)
 
 async function main() {
-	let {audiofile} = await prompt({message: "audio file", name: "audiofile", type: "text"})
+	let {audiofile} = await prompt({message: "audio file", name: "audiofile", type: "text", required: true})
 	audiofile = audiofile.trim()
 	if (audiofile[0] == '~') {
 		audiofile = os.homedir() + audiofile.slice(1)
@@ -24,48 +24,77 @@ async function main() {
 	if (!isvalidfile) return Error('invalid audio file path')
 
 	// TODO name of qari?
-	const {surah} = await prompt({message: "surah", name: "surah", type: "text"})
-	let {ayah} = await prompt({message: "begining from ayah", name:"ayah", type:"text"})
+	let {surah} = await prompt({message: "surah", name: "surah", type: "text", initial: 1})
+	surah = Number(surah)
+	let {ayah} = await prompt({message: "begining from ayah", name:"ayah", type:"text", initial: 1})
 	ayah = Number(ayah)
+	let {audioseek} = await prompt({message: 'seek audio', name: 'audioseek', type:'text', initial: 0})
+	audioseek = Number(audioseek)
 
-	const audic = new Audic(audiofile)
-	audic.addEventListener('ended', () => {
-		audic.destroy()
-		process.stdin.pause()
-	})
-	audic.play()
-	const audiostart = Date.now()
 	const totalayah = await gettotalayah(surah)
 	let result = []
 
 	let ayahtext = await getayah(surah, ayah)
 	_log('ayah '+ayah+': '+ayahtext)
+	const audic = new Audic(audiofile)
+	let playstarted = 0
+	audic.addEventListener('playing', () => {
+		if (audioseek) audic.currentTime = audioseek
+	})
+	audic.addEventListener('seeked', () => {
+		if (!playstarted) playstarted=Date.now()
+	})
+	audic.addEventListener('ended', () => {
+		audic.destroy()
+	})
+	audic.play()
 
+	const iter = {pendingend:false, start:-1, end:-1, duration: -1, start_s: -1, end_s:-1}
 	keypress(process.stdin)
 	process.stdin.on('keypress', async (ch, _data) => {
 		switch(ch) {
 			case '\u0003':
 				process.stdin.pause()
 				audic.destroy()
-				log('log: immediate exit')
+				log('\nlog: immediate exit')
 				log(result)
 				break
 
 			case ' ':
-				const duration = getelapsed(audiostart)
-				_log(' | duration: '+duration+'\n')
-				result.push({duration, ayah, ayahtext})
-				ayah++
-				if (ayah > totalayah) {
-					log('log: surah is complete')
-					await audic.destroy()
-					cbresult(result, {surah, audiofile})
-					process.stdin.pause()
-					return
+				if (!iter.pendingend) {
+					iter.start = Date.now()
+					iter.start_s = getelapsed(playstarted)
+					iter.pendingend=true
+					_log(' | started '+audic.currentTime+'s')
 				}
-				ayahtext = await getayah(surah, ayah)
-				_log('ayah '+ayah+': '+ayahtext)
+				else {
+					_log(' | ended '+audic.currentTime+'s\n')
+					iter.end = Date.now()
+					iter.end_s = getelapsed(playstarted)
+					iter.duration = (iter.end - iter.start)/1000
+					result.push({ayah, ayahtext, start: iter.start, end: iter.end, duration: iter.duration, start_s: audioseek+iter.start_s, end_s: audioseek+iter.end_s})
+					ayah++
+					if (ayah > totalayah) {
+						log('log: surah is complete')
+						await audic.destroy()
+						cbresult(result, {surah, audiofile})
+						process.stdin.pause()
+						break
+					}
+					ayahtext = await getayah(surah, ayah)
+					_log('ayah '+ayah+': '+ayahtext)
+					iter.pendingend=false
+					break
+				}
+				break
 
+			case 'e':
+				// end now, save stuff
+				if (iter.pendingend) break
+				log('\nlog: complete up to '+(ayah-1)+' ayah')
+				process.stdin.pause()
+				await audic.destroy()
+				cbresult(result, {surah, audiofile})
 				break
 		}
 	})
@@ -82,15 +111,20 @@ async function cbresult(result, {audiofile, surah}) {
 	const ext = path.extname(audiofile)
 	let prev = 0
 	result.forEach(r => {
-		mp3.cut({
-			src: audiofile,
-			target: 'surah-'+ surah + '-' +r.ayah+ext,
-			start: prev,
-			end: r.duration
-		})
-		prev=r.duration
+		const started = Date.now()
+		const target = 'surah-'+ surah + '-' +r.ayah+ext
+		_log(`log: saving ayah file "${target}"`)
+		
+		try{
+			const cmd = `ffmpeg -v 0 -loglevel 0 -y -i ${audiofile} -ss ${r.start_s} -to ${r.end_s} -qscale 0 ${target}`
+			childp.execSync(cmd)
+		} catch(err) {
+			const out = err.stdout.toString().trim()
+			if (out) log('ffmpeg command failed:\n'+out)
+		}
+
+		_log(' | done in '+getelapsed(started)+'s\n')
 	})
-	// cut audio
 }
 
 async function gettotalayah(surah) {
