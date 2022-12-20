@@ -3,15 +3,17 @@
 	"license": "MIT",
 	"type": "module",
 	"scripts": {
-		"start": "NODE_NO_WARNINGS=1 node main.js"
+		"start": "NODE_NO_WARNINGS=1 node main.js",
+		"play": "NODE_NO_WARNINGS=1 node play.js"
 	},
 	"dependencies": {
 		"audic": "^3.0.1",
 		"enquirer": "^2.3.6",
-		"ffmpeg": "^0.0.4",
 		"fs-extra": "^11.1.0",
+		"glob": "^8.0.3",
+		"html-tags": "^3.2.0",
 		"keypress": "^0.2.1",
-		"play-sound": "^1.1.5",
-		"sound-play": "^1.1.0"
+		"rtl-arabic": "github:MidnQP/rtl-arabic",
+		"string-strip-html": "^13.0.2"
 	}
 }
