@@ -6,6 +6,7 @@ import process from 'node:process'
 import keypress from 'keypress'
 import path from 'node:path'
 import childp from 'node:child_process'
+import {getarabic, getelapsed, getayah, gettotalayah} from './util.js'
 
 const log = console.log
 const _log = process.stdout.write.bind(process.stdout)
@@ -34,8 +35,18 @@ async function main() {
 	const totalayah = await gettotalayah(surah)
 	let result = []
 
-	let ayahtext = await getayah(surah, ayah)
-	_log('ayah '+ayah+': '+ayahtext)
+	const ayahobj = {}
+	const arabicobj={}
+	for (let i=ayah; i <=totalayah; i++) {
+		const translation = await getayah(surah, i)
+		const arabictext = await getarabic(surah, i)
+		ayahobj[i] = translation
+		arabicobj[i] = arabictext
+	}
+	log('ayah '+ayah)
+	log(arabicobj[ayah])
+	_log(ayahobj[ayah])
+
 	const audic = new Audic(audiofile)
 	let playstarted = 0
 	audic.addEventListener('playing', () => {
@@ -50,6 +61,7 @@ async function main() {
 	audic.play()
 
 	const iter = {pendingend:false, start:-1, end:-1, duration: -1, start_s: -1, end_s:-1}
+	process.stdin.setEncoding("utf8")
 	keypress(process.stdin)
 	process.stdin.on('keypress', async (ch, _data) => {
 		switch(ch) {
@@ -68,11 +80,11 @@ async function main() {
 					_log(' | started '+audic.currentTime+'s')
 				}
 				else {
-					_log(' | ended '+audic.currentTime+'s\n')
+					_log(' | ended '+audic.currentTime+'s\n\n')
 					iter.end = Date.now()
 					iter.end_s = getelapsed(playstarted)
 					iter.duration = (iter.end - iter.start)/1000
-					result.push({ayah, ayahtext, start: iter.start, end: iter.end, duration: iter.duration, start_s: audioseek+iter.start_s, end_s: audioseek+iter.end_s})
+					result.push({ayah, ayahtext: ayahobj[ayah], start: iter.start, end: iter.end, duration: iter.duration, start_s: audioseek+iter.start_s, end_s: audioseek+iter.end_s})
 					ayah++
 					if (ayah > totalayah) {
 						log('log: surah is complete')
@@ -81,8 +93,12 @@ async function main() {
 						process.stdin.pause()
 						break
 					}
-					ayahtext = await getayah(surah, ayah)
-					_log('ayah '+ayah+': '+ayahtext)
+					//ayahtext = await getayah(surah, ayah)
+					//ayaharabic=  await getarabic(surah, ayah)
+
+					log('ayah '+ayah)
+					log(arabicobj[ayah])
+					_log(ayahobj[ayah])
 					iter.pendingend=false
 					break
 				}
@@ -107,7 +123,7 @@ async function main() {
 // TODO Maybe something like a pair of space i.e. start-end
 // for a verse would be more accurate. Yep, inshaa allah.
 async function cbresult(result, {audiofile, surah}) {
-	log(result)
+	//log(result)
 	const ext = path.extname(audiofile)
 	let prev = 0
 	result.forEach(r => {
@@ -127,21 +143,3 @@ async function cbresult(result, {audiofile, surah}) {
 	})
 }
 
-async function gettotalayah(surah) {
-	const r = await fetch('https://api.quran.com/api/v4/chapters/'+surah)
-	const body = await r.json()
-	return body.chapter.verses_count
-}
-
-async function getayah(surah, ayah) {
-	const key = [surah, ayah].join(':')
-	const r = await fetch(`https://api.quran.com/api/v4/verses/by_key/${key}?language=en&words=true`)
-	const body = await r.json()
-	const arr = body.verse.words.map(e => e.translation.text)
-	return arr.slice(0,-1).join(' ')
-}
-
-function getelapsed(starttime) {
-	const ms = Date.now() - starttime
-	return ms /1000
-}
