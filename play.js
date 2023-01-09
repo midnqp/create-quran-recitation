@@ -13,20 +13,20 @@ const pglob = util.promisify(glob)
 
 let {surah} = await prompt({message: "surah", name: "surah", type: "text", initial: 1})
 surah = parseInt(surah)
-let {ayahbegin} = await prompt({message: "begining from ayah", name:"ayahbegin", type:"text", initial: 1})
+let {ayahbegin} = await prompt({message: "begining from ayah", name: "ayahbegin", type: "text", initial: 1})
 ayahbegin = parseInt(ayahbegin)
 const lastayah = await gettotalayah(surah)
-let {ayahend} = await prompt({message:'up to ayah', name: 'ayahend', type:'text', initial:lastayah})
+let {ayahend} = await prompt({message: 'up to ayah', name: 'ayahend', type: 'text', initial: lastayah})
 ayahend = parseInt(ayahend)
 
-const files = await pglob(out+'/surah-'+surah+'-*.*')
+const files = await pglob(out + '/surah-' + surah + '-*.*')
 const db = []
 for (const file of files) {
-	const {name:fname} = path.parse(file)
+	const {name: fname} = path.parse(file)
 	const ayah = parseInt(fname.split('-')[2])
 	if (ayah < ayahbegin) continue
 	if (ayah > ayahend) break
-	
+
 	const arabic = await getarabic(surah, ayah)
 	const text = await getayah(surah, ayah)
 	db.push({text, arabic, file, surah, ayah})
